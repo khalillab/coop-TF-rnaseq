@@ -6,12 +6,12 @@ localrules:
 rule fastqc_prealignment:
     input:
         lambda wc: {"raw": SAMPLES[wc.sample]["fastq"],
-                    "clean": f"fastq/cleaned/{wc.sample}_{ASSAY}-clean.fastq.gz"
+                    "clean": "fastq/cleaned/{sample}_rnaseq-clean.fastq.gz"
                    }.get(wc.read_status)
     output:
         "qual_ctrl/fastqc/{read_status}/{sample}_fastqc-data-{read_status}.txt"
     params:
-        fname = lambda wc: re.split('.fq|.fastq', os.path.split(SAMPLES[wc.sample]["fastq"])[1])[0] if wc.read_status=="raw" else f"{wc.sample}_{ASSAY}-{wc.read_status}".format(**wc),
+        fname = lambda wc: re.split('.fq|.fastq', os.path.split(SAMPLES[wc.sample]["fastq"])[1])[0] if wc.read_status=="raw" else f"{wc.sample}_rnaseq-{wc.read_status}".format(**wc),
         adapter = config["cutadapt"]["adapter"]
     wildcard_constraints:
         read_status="raw|clean"
@@ -27,9 +27,9 @@ rule fastqc_prealignment:
 
 rule fastqc_postalignment:
     input:
-        lambda wc: {"aligned_noPCRdup": f"alignment/{wc.sample}_{ASSAY}-noPCRduplicates.bam",
-                    "unique_mappers": f"alignment/{wc.sample}_{ASSAY}-uniquemappers.bam",
-                    "unaligned": f"alignment/{wc.sample}/unmapped.bam"
+        lambda wc: {#"aligned": "alignment/{sample}/accepted_hits.bam",
+                    "unique_mappers": "alignment/{sample}_rnaseq-uniquemappers.bam",
+                    "unaligned": "alignment/{sample}/unmapped.bam"
                     }.get(wc.read_status)
     output:
         "qual_ctrl/fastqc/{read_status}/{sample}_fastqc-data-{read_status}.txt"
@@ -37,7 +37,7 @@ rule fastqc_postalignment:
         fname = lambda wc: "{sample}_{read_status}".format(**wc),
         adapter = config["cutadapt"]["adapter"]
     wildcard_constraints:
-        read_status="aligned_noPCRdup|unique_mappers|unaligned"
+        read_status="aligned|unique_mappers|unaligned"
     threads:
         config["threads"]
     log:
@@ -93,20 +93,20 @@ rule fastqc_aggregate:
     input:
         raw = expand("qual_ctrl/fastqc/raw/{sample}_fastqc-data-raw.txt", sample=SAMPLES),
         clean = expand("qual_ctrl/fastqc/clean/{sample}_fastqc-data-clean.txt", sample=SAMPLES),
-        aligned = expand("qual_ctrl/fastqc/aligned_noPCRdup/{sample}_fastqc-data-aligned_noPCRdup.txt", sample=SAMPLES) if config["random-hexamer"] else expand("qual_ctrl/fastqc/unique_mappers/{sample}_fastqc-data-unique_mappers.txt", sample=SAMPLES),
+        aligned = expand("qual_ctrl/fastqc/unique_mappers/{sample}_fastqc-data-unique_mappers.txt", sample=SAMPLES),
         unaligned = expand("qual_ctrl/fastqc/unaligned/{sample}_fastqc-data-unaligned.txt", sample=SAMPLES),
     output:
-        per_base_qual = f'qual_ctrl/fastqc/{ASSAY}-per_base_quality.tsv',
-        per_tile_qual = f'qual_ctrl/fastqc/{ASSAY}-per_tile_quality.tsv',
-        per_seq_qual =  f'qual_ctrl/fastqc/{ASSAY}-per_sequence_quality.tsv',
-        per_base_seq_content = f'qual_ctrl/fastqc/{ASSAY}-per_base_sequence_content.tsv',
-        per_seq_gc = f'qual_ctrl/fastqc/{ASSAY}-per_sequence_gc.tsv',
-        per_base_n = f'qual_ctrl/fastqc/{ASSAY}-per_base_n.tsv',
-        seq_length_dist = f'qual_ctrl/fastqc/{ASSAY}-sequence_length_distribution.tsv',
-        seq_duplication = f'qual_ctrl/fastqc/{ASSAY}-sequence_duplication_levels.tsv',
-        adapter_content = f'qual_ctrl/fastqc/{ASSAY}-adapter_content.tsv',
+        per_base_qual = 'qual_ctrl/fastqc/rnaseq-per_base_quality.tsv',
+        per_tile_qual = 'qual_ctrl/fastqc/rnaseq-per_tile_quality.tsv',
+        per_seq_qual =  'qual_ctrl/fastqc/rnaseq-per_sequence_quality.tsv',
+        per_base_seq_content = 'qual_ctrl/fastqc/rnaseq-per_base_sequence_content.tsv',
+        per_seq_gc = 'qual_ctrl/fastqc/rnaseq-per_sequence_gc.tsv',
+        per_base_n = 'qual_ctrl/fastqc/rnaseq-per_base_n.tsv',
+        seq_length_dist = 'qual_ctrl/fastqc/rnaseq-sequence_length_distribution.tsv',
+        seq_duplication = 'qual_ctrl/fastqc/rnaseq-sequence_duplication_levels.tsv',
+        adapter_content = 'qual_ctrl/fastqc/rnaseq-adapter_content.tsv',
     run:
-        tags = ["raw", "clean", "aligned_noPCRdup", "unaligned"] if config["random-hexamer"] else ["raw", "clean", "unique_mappers", "unaligned"]
+        tags = ["raw", "clean", "unique_mappers", "unaligned"]
         shell("""rm -f {output}""")
         for fastqc_metric, out_path in output.items():
             title = fastqc_dict[fastqc_metric]["title"]
@@ -119,24 +119,26 @@ rule fastqc_aggregate:
 
 rule plot_fastqc_summary:
     input:
-        seq_len_dist = f'qual_ctrl/fastqc/{ASSAY}-sequence_length_distribution.tsv',
-        per_tile = f'qual_ctrl/fastqc/{ASSAY}-per_tile_quality.tsv',
-        per_base_qual = f'qual_ctrl/fastqc/{ASSAY}-per_base_quality.tsv',
-        per_base_seq = f'qual_ctrl/fastqc/{ASSAY}-per_base_sequence_content.tsv',
-        per_base_n = f'qual_ctrl/fastqc/{ASSAY}-per_base_n.tsv',
-        per_seq_gc = f'qual_ctrl/fastqc/{ASSAY}-per_sequence_gc.tsv',
-        per_seq_qual = f'qual_ctrl/fastqc/{ASSAY}-per_sequence_quality.tsv',
-        adapter_content = f'qual_ctrl/fastqc/{ASSAY}-adapter_content.tsv',
-        seq_dup = f'qual_ctrl/fastqc/{ASSAY}-sequence_duplication_levels.tsv',
+        seq_len_dist = 'qual_ctrl/fastqc/rnaseq-sequence_length_distribution.tsv',
+        per_tile = 'qual_ctrl/fastqc/rnaseq-per_tile_quality.tsv',
+        per_base_qual = 'qual_ctrl/fastqc/rnaseq-per_base_quality.tsv',
+        per_base_seq = 'qual_ctrl/fastqc/rnaseq-per_base_sequence_content.tsv',
+        per_base_n = 'qual_ctrl/fastqc/rnaseq-per_base_n.tsv',
+        per_seq_gc = 'qual_ctrl/fastqc/rnaseq-per_sequence_gc.tsv',
+        per_seq_qual = 'qual_ctrl/fastqc/rnaseq-per_sequence_quality.tsv',
+        adapter_content = 'qual_ctrl/fastqc/rnaseq-adapter_content.tsv',
+        seq_dup = 'qual_ctrl/fastqc/rnaseq-sequence_duplication_levels.tsv',
     output:
-        seq_len_dist = f'qual_ctrl/fastqc/{ASSAY}-sequence_length_distribution.svg',
-        per_tile = f'qual_ctrl/fastqc/{ASSAY}-per_tile_quality.svg',
-        per_base_qual = f'qual_ctrl/fastqc/{ASSAY}-per_base_quality.svg',
-        per_base_seq = f'qual_ctrl/fastqc/{ASSAY}-per_base_sequence_content.svg',
-        per_seq_gc = f'qual_ctrl/fastqc/{ASSAY}-per_sequence_gc.svg',
-        per_seq_qual = f'qual_ctrl/fastqc/{ASSAY}-per_sequence_quality.svg',
-        adapter_content = f'qual_ctrl/fastqc/{ASSAY}-adapter_content.svg',
-        seq_dup = f'qual_ctrl/fastqc/{ASSAY}-sequence_duplication_levels.svg',
-    conda: "../envs/tidyverse.yaml"
-    script: "../scripts/fastqc_summary.R"
+        seq_len_dist = 'qual_ctrl/fastqc/rnaseq-sequence_length_distribution.svg',
+        per_tile = 'qual_ctrl/fastqc/rnaseq-per_tile_quality.svg',
+        per_base_qual = 'qual_ctrl/fastqc/rnaseq-per_base_quality.svg',
+        per_base_seq = 'qual_ctrl/fastqc/rnaseq-per_base_sequence_content.svg',
+        per_seq_gc = 'qual_ctrl/fastqc/rnaseq-per_sequence_gc.svg',
+        per_seq_qual = 'qual_ctrl/fastqc/rnaseq-per_sequence_quality.svg',
+        adapter_content = 'qual_ctrl/fastqc/rnaseq-adapter_content.svg',
+        seq_dup = 'qual_ctrl/fastqc/rnaseq-sequence_duplication_levels.svg',
+    conda:
+        "../envs/tidyverse.yaml"
+    script:
+        "../scripts/fastqc_summary.R"
 

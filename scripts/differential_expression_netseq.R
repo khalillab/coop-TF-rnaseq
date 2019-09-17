@@ -359,10 +359,10 @@ main = function(exp_table,
 }
 
 main(exp_table = snakemake@input[["exp_counts"]],
-     spike_table = snakemake@input[["spike_counts"]],
+     spike_table = NULL,
      samples = snakemake@params[["samples"]],
      groups = snakemake@params[["groups"]],
-     norm = snakemake@wildcards[["norm"]],
+     norm = "libsizenorm",
      condition = snakemake@wildcards[["condition"]],
      control = snakemake@wildcards[["control"]],
      alpha = snakemake@params[["alpha"]],

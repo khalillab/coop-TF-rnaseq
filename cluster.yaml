@@ -75,7 +75,7 @@ compute_matrix:
     mem: 400
 
 plot_figures:
-    time: 90
+    time: 15
     mem: 24000
 
 map_to_windows:

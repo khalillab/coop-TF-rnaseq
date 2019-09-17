@@ -9,7 +9,8 @@ rule make_stranded_annotations:
         lambda wc : FIGURES[wc.figure]["annotations"][wc.annotation]["path"]
     output:
         "datavis/{figure}/{annotation}.bed"
-    log : "logs/make_stranded_annotations/make_stranded_annotations-{figure}-{annotation}.log"
+    log:
+        "logs/make_stranded_annotations/make_stranded_annotations-{figure}-{annotation}.log"
     shell: """
         (bash scripts/makeStrandedBed.sh {input} > {output}) &> {log}
         """
@@ -17,13 +18,13 @@ rule make_stranded_annotations:
 rule compute_matrix:
     input:
         annotation = "datavis/{figure}/{annotation}.bed",
-        bw = f"coverage/{{norm}}/{{sample}}_{ASSAY}-{{readtype}}-{{norm}}-{{strand}}.bw"
+        bw = "coverage/{norm}/{sample}_rnaseq-{readtype}-{norm}-{strand}.bw"
     output:
         dtfile = temp("datavis/{figure}/{norm}/{annotation}_{sample}_{norm}-{readtype}-{strand}.mat.gz"),
         matrix = temp("datavis/{figure}/{norm}/{annotation}_{sample}_{norm}-{readtype}-{strand}.tsv"),
         melted = temp("datavis/{figure}/{norm}/{annotation}_{sample}_{norm}-{readtype}-{strand}-melted.tsv.gz")
     params:
-        group = lambda wc : SAMPLES[wc.sample]["group"],
+        group = lambda wc: SAMPLES[wc.sample]["group"],
         refpoint = lambda wc: "TSS" if FIGURES[wc.figure]["parameters"]["type"]=="scaled" else FIGURES[wc.figure]["parameters"]["refpoint"],
         upstream = lambda wc: FIGURES[wc.figure]["parameters"]["upstream"] + FIGURES[wc.figure]["parameters"]["binsize"],
         dnstream = lambda wc: FIGURES[wc.figure]["parameters"]["dnstream"] + FIGURES[wc.figure]["parameters"]["binsize"],
@@ -32,29 +33,67 @@ rule compute_matrix:
         binstat = lambda wc: FIGURES[wc.figure]["parameters"]["binstat"],
         nan_afterend = lambda wc: [] if FIGURES[wc.figure]["parameters"]["type"]=="scaled" or not FIGURES[wc.figure]["parameters"]["nan_afterend"] else "--nanAfterEnd",
         anno_label = lambda wc: FIGURES[wc.figure]["annotations"][wc.annotation]["label"]
-    threads : config["threads"]
-    log: "logs/compute_matrix/compute_matrix-{figure}_{annotation}_{sample}_{norm}-{readtype}-{strand}.log"
+    threads:
+        config["threads"]
+    log:
+        "logs/compute_matrix/compute_matrix-{figure}_{annotation}_{sample}_{norm}-{readtype}-{strand}.log"
     run:
         if FIGURES[wildcards.figure]["parameters"]["type"]=="absolute":
-            shell("""(computeMatrix reference-point -R {input.annotation} -S {input.bw} --referencePoint {params.refpoint} -out {output.dtfile} --outFileNameMatrix {output.matrix} -b {params.upstream} -a {params.dnstream} {params.nan_afterend} --binSize {params.binsize} --averageTypeBins {params.binstat} -p {threads}) &> {log}""")
+            shell("""(computeMatrix reference-point \
+                        -R {input.annotation} \
+                        -S {input.bw} \
+                        --referencePoint {params.refpoint} \
+                        -out {output.dtfile} \
+                        --outFileNameMatrix {output.matrix} \
+                        -b {params.upstream} \
+                        -a {params.dnstream} \
+                        {params.nan_afterend} \
+                        --binSize {params.binsize} \
+                        --averageTypeBins {params.binstat} \
+                        -p {threads}) \
+                      &> {log}""")
         else:
-            shell("""(computeMatrix scale-regions -R {input.annotation} -S {input.bw} -out {output.dtfile} --outFileNameMatrix {output.matrix} -m {params.scaled_length} -b {params.upstream} -a {params.dnstream} --binSize {params.binsize} --averageTypeBins {params.binstat} -p {threads}) &> {log}""")
+            shell("""(computeMatrix scale-regions \
+                        -R {input.annotation} \
+                        -S {input.bw} \
+                        -out {output.dtfile} \
+                        --outFileNameMatrix {output.matrix} \
+                        -m {params.scaled_length} \
+                        -b {params.upstream} \
+                        -a {params.dnstream} \
+                        --binSize {params.binsize} \
+                        --averageTypeBins {params.binstat} \
+                        -p {threads}) \
+                      &> {log}""")
         melt_upstream = params.upstream-params.binsize
-        shell("""(Rscript scripts/melt_matrix.R -i {output.matrix} -r {params.refpoint} -g {params.group} -s {wildcards.sample} -a {params.anno_label} -b {params.binsize} -u {melt_upstream} -o {output.melted}) &>> {log}""")
+        shell("""(Rscript scripts/melt_matrix.R \
+                    -i {output.matrix} \
+                    -r {params.refpoint} \
+                    -g {params.group} \
+                    -s {wildcards.sample} \
+                    -a {params.anno_label} \
+                    -b {params.binsize} \
+                    -u {melt_upstream} \
+                    -o {output.melted})
+                  &>> {log}""")
 
 rule cat_matrices:
     input:
-        lambda wc: expand("datavis/{figure}/{norm}/{annotation}_{sample}_{norm}-{readtype}-{strand}-melted.tsv.gz", annotation=[k for k,v in FIGURES[wc.figure]["annotations"].items()], sample=SAMPLES, figure=wc.figure, norm=wc.norm, strand=wc.strand, readtype=wc.readtype)
+        lambda wc: expand("datavis/{{figure}}/{{norm}}/{annotation}_{sample}_{{norm}}-{{readtype}}-{{strand}}-melted.tsv.gz",
+                annotation=[k for k,v in FIGURES[wc.figure]["annotations"].items()],
+                sample=SAMPLES)
     output:
         "datavis/{figure}/{norm}/{figure}-allsamples-allannotations-{norm}-{readtype}-{strand}.tsv.gz"
-    log: "logs/cat_matrices/cat_matrices-{figure}_{norm}-{readtype}-{strand}.log"
+    log:
+        "logs/cat_matrices/cat_matrices-{figure}_{norm}-{readtype}-{strand}.log"
     shell: """
         (cat {input} > {output}) &> {log}
         """
 
 rule plot_figures:
     input:
-        matrices = expand("datavis/{{figure}}/{{norm}}/{{figure}}-allsamples-allannotations-{{norm}}-{{readtype}}-{strand}.tsv.gz", strand=["SENSE", "ANTISENSE"]),
+        matrices = expand("datavis/{{figure}}/{{norm}}/{{figure}}-allsamples-allannotations-{{norm}}-{{readtype}}-{strand}.tsv.gz",
+                strand=["SENSE", "ANTISENSE"]),
         annotations = lambda wc: [v["path"] for k,v in FIGURES[wc.figure]["annotations"].items()]
     output:
         heatmap_sample_both = "datavis/{figure}/{norm}/{condition}-v-{control}/{status}/{readtype}/{assay}-{figure}-{norm}-{status}_{condition}-v-{control}_{readtype}-heatmap-bysample-bothstrands.svg",
@@ -88,7 +127,7 @@ rule plot_figures:
         # abusing snakemake a bit here...using params as output paths in order to use lambda functions
         annotations_out = lambda wc: ["datavis/{figure}/{norm}/{condition}-v-{control}/{status}/{readtype}/".format(**wc) + annotation + "_cluster-" + str(cluster) + ".bed" for annotation in FIGURES[wc.figure]["annotations"] for cluster in range(1, FIGURES[wc.figure]["annotations"][annotation]["n_clusters"]+1)],
         clusters_out = lambda wc: ["datavis/{figure}/{norm}/{condition}-v-{control}/{status}/{readtype}/".format(**wc) + annotation + ".pdf" for annotation in FIGURES[wc.figure]["annotations"]],
-        samplelist = lambda wc: get_samples(wc.status, wc.norm, [wc.condition, wc.control]),
+        samplelist = lambda wc: get_samples(wc.status, [wc.condition, wc.control]),
         plottype = lambda wc: FIGURES[wc.figure]["parameters"]["type"],
         upstream = lambda wc: FIGURES[wc.figure]["parameters"]["upstream"],
         dnstream = lambda wc: FIGURES[wc.figure]["parameters"]["dnstream"],
@@ -107,9 +146,9 @@ rule plot_figures:
         cluster_five = lambda wc: [] if FIGURES[wc.figure]["parameters"]["arrange"] != "cluster" else FIGURES[wc.figure]["parameters"]["cluster_five"],
         cluster_three = lambda wc: [] if FIGURES[wc.figure]["parameters"]["arrange"] != "cluster" else FIGURES[wc.figure]["parameters"]["cluster_three"],
         k = lambda wc: [v["n_clusters"] for k,v in FIGURES[wc.figure]["annotations"].items()],
-        assay = {"rnaseq": "RNA-seq",
-                 "netseq": "NET-seq"}.get(ASSAY)
-    conda: "../envs/tidyverse.yaml"
+        assay = "RNA-seq"
+    conda:
+        "../envs/tidyverse.yaml"
     script:
         "../scripts/plot_netseq_figures.R"
 

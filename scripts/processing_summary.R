@@ -1,5 +1,4 @@
 library(tidyverse)
-library(forcats)
 library(viridis)
 
 survival_plot = function(df, scalefactor, ylabel){
@@ -7,9 +6,9 @@ survival_plot = function(df, scalefactor, ylabel){
         # geom_hline(aes(yintercept=count/scalefactor), color="grey50", size=0.2) +
         geom_step(direction="vh", position=position_nudge(x=0.5),
                   color="#114477", size=0.8) +
-        scale_x_continuous(expand=c(0,0), breaks=2:6, name=NULL,
+        scale_x_continuous(expand=c(0,0), breaks=2:5, name=NULL,
                            labels=c("raw reads", "reads cleaned",
-                                    "aligned", "uniquely aligned", "PCR duplicates removed")) +
+                                    "aligned", "uniquely aligned")) +
         scale_y_continuous(sec.axis=dup_axis(), name=ylabel) +
         facet_grid(sample~., switch="y") +
         theme_light() +
@@ -42,7 +41,7 @@ main = function(in_table, surv_abs_out, surv_rel_out, loss_out){
     #some hacking to get a survival-curve like thing
     #TODO: make the color fill the AUC?
     survival = df %>% mutate(dummy=raw) %>%
-        select(sample, dummy, 2:7) %>%
+        select(sample, dummy, 2:6) %>%
         gather(step, count, -sample, factor_key=TRUE) %>%
         mutate_at(vars(step), as.numeric)
 
@@ -63,7 +62,7 @@ main = function(in_table, surv_abs_out, surv_rel_out, loss_out){
         scale_fill_viridis(name="% loss", guide=guide_colorbar(barheight = 10, barwidth=1)) +
         scale_color_viridis(guide=FALSE) +
         scale_x_discrete(labels = c("reads cleaned", "aligned",
-                                    "uniquely aligned", "PCR duplicates removed"),
+                                    "uniquely aligned"),
                          expand=c(0,0), name=NULL) +
         scale_y_continuous(breaks=0, expand=c(0,0), name=NULL) +
         facet_grid(sample~., switch="y") +

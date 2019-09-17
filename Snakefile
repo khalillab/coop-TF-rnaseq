@@ -6,72 +6,46 @@ import itertools
 
 configfile: "config.yaml"
 
-subworkflow build_annotations:
-    workdir: config["genome"]["annotation_workflow"]
-
-configfile: build_annotations("config.yaml")
-
-ASSAY = config["assay"]
-
 SAMPLES = config["samples"]
-SISAMPLES = {k:v for k,v in SAMPLES.items() if v["spikein"]}
 PASSING = {k:v for k,v in SAMPLES.items() if v["pass-qc"]}
-SIPASSING = {k:v for k,v in PASSING.items() if v["spikein"]}
 
 controlgroups = list(itertools.chain(*[d.values() for d in config["comparisons"]["libsizenorm"]]))
 conditiongroups = list(itertools.chain(*[d.keys() for d in config["comparisons"]["libsizenorm"]]))
 
-comparisons_si = config["comparisons"]["spikenorm"]
-
-if comparisons_si:
-    controlgroups_si = list(itertools.chain(*[d.values() for d in config["comparisons"]["spikenorm"]]))
-    conditiongroups_si = list(itertools.chain(*[d.keys() for d in config["comparisons"]["spikenorm"]]))
-
-COUNTTYPES = ["counts", "sicounts"] if SISAMPLES else ["counts"]
-NORMS = ["libsizenorm", "spikenorm"] if SISAMPLES else ["libsizenorm"]
-
-CATEGORIES = ["genic", "antisense", "convergent", "divergent", "intergenic"]
+COUNTTYPES = ["counts"]
+NORMS = ["libsizenorm"]
 
 FIGURES = config["figures"]
 
 wildcard_constraints:
     sample = "|".join(re.escape(x) for x in list(SAMPLES.keys())),
     group = "|".join(set(re.escape(v["group"]) for k,v in SAMPLES.items())),
-    control = "|".join(set(re.escape(x) for x in controlgroups + (controlgroups_si if comparisons_si else []) + ["all"])),
-    condition = "|".join(set(re.escape(x) for x in conditiongroups + (conditiongroups_si if comparisons_si else []) + ["all"])),
-    species = "experimental|spikein",
+    control = "|".join(set(re.escape(x) for x in controlgroups + ["all"])),
+    condition = "|".join(set(re.escape(x) for x in conditiongroups + ["all"])),
     read_status = "raw|cleaned|aligned|unaligned",
     figure = "|".join(re.escape(x) for x in list(FIGURES.keys())),
     annotation = "|".join(re.escape(x) for x in set(list(itertools.chain(*[FIGURES[figure]["annotations"].keys() for figure in FIGURES])) + list(config["differential_expression"]["annotations"].keys() if config["differential_expression"]["annotations"] else []) + ["transcripts"])),
     status = "all|passing",
-    counttype= "counts|sicounts",
-    norm = "counts|sicounts|libsizenorm|spikenorm",
+    counttype= "counts",
+    norm = "counts|libsizenorm",
     readtype = "5end|wholeread",
     windowsize = "\d+",
     direction = "all|up|unchanged|down",
-    assay = ASSAY
 
 status_norm_sample_dict = {
-    "all":
-        {   "libsizenorm" : SAMPLES,
-            "spikenorm" : SISAMPLES
-        },
-    "passing":
-        {   "libsizenorm" : PASSING,
-            "spikenorm" : SIPASSING
-        }
-    }
+    "all": SAMPLES,
+    "passing": PASSING}
 
-def get_samples(status, norm, groups):
+def get_samples(status, groups):
     if "all" in groups:
-        return(list(status_norm_sample_dict[status][norm].keys()))
+        return(list(status_norm_sample_dict[status].keys()))
     else:
-        return([k for k,v in status_norm_sample_dict[status][norm].items() if v["group"] in groups])
+        return([k for k,v in status_norm_sample_dict[status].items() if v["group"] in groups])
 
-def cluster_samples(status, norm, cluster_groups, cluster_strands):
+def cluster_samples(status, cluster_groups, cluster_strands):
     ll = []
     for group, strand in zip(cluster_groups, cluster_strands):
-        sublist = [k for k,v in status_norm_sample_dict[status][norm].items() if v["group"] in cluster_groups]
+        sublist = [k for k,v in status_norm_sample_dict[status].items() if v["group"] in cluster_groups]
         if strand in ["sense", "both"]:
             ll.append([f"{sample}-sense" for sample in sublist])
         if strand in ["antisense", "both"]:
@@ -87,7 +61,7 @@ include: "rules/net-seq_sample_similarity.smk"
 include: "rules/net-seq_datavis.smk"
 include: "rules/net-seq_differential_levels.smk"
 include: "rules/net-seq_transcript_annotation.smk"
-include: "rules/net-seq_transcript_classification.smk"
+# include: "rules/net-seq_transcript_classification.smk"
 
 onsuccess:
     shell("(./mogrify.sh) > mogrify.log")
@@ -105,26 +79,34 @@ rule all:
         #require config file so that it gets archived
         "config.yaml",
         #FastQC
-        f'qual_ctrl/fastqc/{ASSAY}-per_base_sequence_content.svg',
+        'qual_ctrl/fastqc/rnaseq-per_base_sequence_content.svg',
         #alignment
-        expand(f"alignment/{{sample}}_{ASSAY}-noPCRduplicates.bam", sample=SAMPLES) if config["random-hexamer"] else expand(f"alignment/{{sample}}_{ASSAY}-uniquemappers.bam", sample=SAMPLES),
+        expand("alignment/{sample}_rnaseq-uniquemappers.bam",
+                sample=SAMPLES),
         #coverage
-        expand("coverage/{norm}/{sample}_{assay}-{readtype}-{norm}-{strand}.bw", norm=["counts","libsizenorm"], sample=SAMPLES, readtype=["5end", "wholeread"], strand=["SENSE", "ANTISENSE", "plus", "minus"], assay=ASSAY),
-        expand("coverage/{norm}/{sample}_{assay}-{readtype}-{norm}-{strand}.bw", norm=["sicounts","spikenorm"], sample=SISAMPLES, readtype=["5end", "wholeread"], strand=["SENSE", "ANTISENSE", "plus", "minus"], assay=ASSAY),
+        expand("coverage/{norm}/{sample}_rnaseq-{readtype}-{norm}-{strand}.bw",
+                norm=["counts","libsizenorm"],
+                sample=SAMPLES,
+                readtype=["5end", "wholeread"],
+                strand=["SENSE", "ANTISENSE", "plus", "minus"]),
         #quality control
-        f"qual_ctrl/read_processing/{ASSAY}_read-processing-loss.svg",
-        expand(f"qual_ctrl/spikein/{ASSAY}_spikein-plots-{{status}}.svg", status=statuscheck(SISAMPLES, SIPASSING)) if SISAMPLES else [],
-        expand(expand("qual_ctrl/scatter_plots/{condition}-v-{control}/{{status}}/{condition}-v-{control}_{{assay}}-libsizenorm-scatterplots-{{status}}-window-{{windowsize}}.svg", zip, condition=conditioncheck(conditiongroups), control=conditioncheck(controlgroups)), status=statuscheck(SAMPLES, PASSING), windowsize=config["scatterplot_binsizes"], assay=ASSAY),
-        expand(expand("qual_ctrl/scatter_plots/{condition}-v-{control}/{{status}}/{condition}-v-{control}_{{assay}}-spikenorm-scatterplots-{{status}}-window-{{windowsize}}.svg", zip, condition=conditioncheck(conditiongroups_si), control=conditioncheck(controlgroups_si)), status=statuscheck(SISAMPLES, SIPASSING), windowsize=config["scatterplot_binsizes"], assay=ASSAY) if SISAMPLES and comparisons_si else [],
+        "qual_ctrl/read_processing/rnaseq_read-processing-loss.svg",
+        expand(expand("qual_ctrl/scatter_plots/{condition}-v-{control}/{{status}}/{condition}-v-{control}_rnaseq-libsizenorm-scatterplots-{{status}}-window-{{windowsize}}.svg",
+            zip, condition=conditioncheck(conditiongroups), control=conditioncheck(controlgroups)),
+            status=statuscheck(SAMPLES, PASSING),
+            windowsize=config["scatterplot_binsizes"]),
         #datavis
-        expand(expand("datavis/{{figure}}/spikenorm/{condition}-v-{control}/{{status}}/{{readtype}}/{{assay}}-{{figure}}-spikenorm-{{status}}_{condition}-v-{control}_{{readtype}}-heatmap-bygroup-sense.svg", zip, condition=conditioncheck(conditiongroups_si), control=conditioncheck(controlgroups_si)), figure=FIGURES, status=statuscheck(SISAMPLES, SIPASSING), readtype=["5end", "wholeread"], assay=ASSAY) if config["plot_figures"] and SISAMPLES and comparisons_si else [],
-        expand(expand("datavis/{{figure}}/libsizenorm/{condition}-v-{control}/{{status}}/{{readtype}}/{{assay}}-{{figure}}-libsizenorm-{{status}}_{condition}-v-{control}_{{readtype}}-heatmap-bygroup-sense.svg", zip, condition=conditioncheck(conditiongroups), control=conditioncheck(controlgroups)), figure=FIGURES, status=statuscheck(SAMPLES, PASSING), readtype=["5end", "wholeread"], assay=ASSAY) if config["plot_figures"] else [],
+        expand(expand("datavis/{{figure}}/libsizenorm/{condition}-v-{control}/{{status}}/{{readtype}}/rnaseq-{{figure}}-libsizenorm-{{status}}_{condition}-v-{control}_{{readtype}}-heatmap-bygroup-sense.svg",
+            zip, condition=conditioncheck(conditiongroups), control=conditioncheck(controlgroups)),
+            figure=FIGURES,
+            status=statuscheck(SAMPLES, PASSING),
+            readtype=["5end", "wholeread"]) if config["plot_figures"] else [],
         #differential expression
-        expand(expand("diff_exp/transcripts/{condition}-v-{control}/libsizenorm/{{category}}/{condition}-v-{control}_{{assay}}-libsizenorm-transcripts-diffexp-results-{{category}}-{{direction}}.tsv", zip, condition=conditiongroups, control=controlgroups), category=CATEGORIES, assay=ASSAY, direction=["all", "up", "down", "unchanged"]),
-        expand(expand("diff_exp/transcripts/{condition}-v-{control}/spikenorm/{{category}}/{condition}-v-{control}_{{assay}}-spikenorm-transcripts-diffexp-results-{{category}}-{{direction}}.tsv", zip, condition=conditiongroups_si, control=controlgroups_si), category=CATEGORIES, assay=ASSAY, direction=["all", "up", "down", "unchanged"]) if SISAMPLES and comparisons_si else [],
-        expand(expand("diff_exp/{{annotation}}/{condition}-v-{control}/libsizenorm/{condition}-v-{control}_{{assay}}-libsizenorm-{{annotation}}-diffexp-results-{{direction}}.tsv", zip, condition=conditiongroups, control=controlgroups), assay=ASSAY, direction=["all", "up", "down", "unchanged"], annotation=list(config["differential_expression"]["annotations"].keys()) if config["differential_expression"]["annotations"] else []),
-        expand(expand("diff_exp/{{annotation}}/{condition}-v-{control}/spikenorm/{condition}-v-{control}_{{assay}}-spikenorm-{{annotation}}-diffexp-results-{{direction}}.tsv", zip, condition=conditiongroups_si, control=controlgroups_si), assay=ASSAY, direction=["all", "up", "down", "unchanged"], annotation=list(config["differential_expression"]["annotations"].keys()) if config["differential_expression"]["annotations"] else []) if SISAMPLES and comparisons_si else [],
-        #differential expression summary
-        expand(expand("diff_exp/transcripts/{condition}-v-{control}/libsizenorm/{condition}-v-{control}_{{assay}}-libsizenorm-diffexp-{{plot}}.svg", zip, condition=conditiongroups, control=controlgroups), plot = ["mosaic", "maplot", "volcano"], assay=ASSAY),
-        expand(expand("diff_exp/transcripts/{condition}-v-{control}/spikenorm/{condition}-v-{control}_{{assay}}-spikenorm-diffexp-{{plot}}.svg", zip, condition=conditiongroups_si, control=controlgroups_si), plot = ["mosaic", "maplot", "volcano"], assay=ASSAY) if SISAMPLES and comparisons_si else [],
+        expand(expand("diff_exp/transcripts/{condition}-v-{control}/libsizenorm/{condition}-v-{control}_rnaseq-libsizenorm-transcripts-diffexp-results-{{direction}}.tsv",
+            zip, condition=conditiongroups, control=controlgroups),
+            direction=["all", "up", "down", "unchanged"]),
+        expand(expand("diff_exp/{{annotation}}/{condition}-v-{control}/libsizenorm/{condition}-v-{control}_rnaseq-libsizenorm-{{annotation}}-diffexp-results-{{direction}}.tsv",
+            zip, condition=conditiongroups, control=controlgroups),
+            direction=["all", "up", "down", "unchanged"],
+            annotation=list(config["differential_expression"]["annotations"].keys()) if config["differential_expression"]["annotations"] else []),
 

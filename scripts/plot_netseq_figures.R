@@ -97,6 +97,7 @@ main = function(in_paths, samplelist, anno_paths, ptype, upstream, dnstream, sca
     }
 
     meta = function(df, groupvar="sample", strand="both"){
+
         if (groupvar=="sample"){
             metagene = ggplot(data = df, aes(x=position, group=sample,
                                              color=group, fill=group))
@@ -133,6 +134,7 @@ main = function(in_paths, samplelist, anno_paths, ptype, upstream, dnstream, sca
         if (strand=="both"){
             metagene = metagene +
                 geom_ribbon(aes(ymin=-mid_antisense, ymax=0), alpha=0.05, size=0) +
+                # geom_ribbon(aes(ymin=-mid_antisense, ymax=0), alpha=0.05, size=0) +
                 geom_ribbon(aes(ymin=-high_antisense,
                                 ymax=-low_antisense),
                                 alpha=0.4, size=0) +
@@ -673,6 +675,7 @@ main = function(in_paths, samplelist, anno_paths, ptype, upstream, dnstream, sca
                       mid_antisense = winsor.mean(antisense, trim=trim_pct),
                       sd_sense = winsor.sd(sense, trim=trim_pct),
                       sd_antisense = winsor.sd(antisense, trim=trim_pct)) %>%
+            drop_na() %>%
             mutate(low_sense = mid_sense-sd_sense,
                    high_sense = mid_sense+sd_sense,
                    low_antisense = mid_antisense-sd_antisense,
@@ -701,7 +704,8 @@ main = function(in_paths, samplelist, anno_paths, ptype, upstream, dnstream, sca
                       high_sense = quantile(sense, probs=(1-trim_pct)),
                       mid_antisense = median(antisense),
                       low_antisense = quantile(antisense, probs=trim_pct),
-                      high_antisense = quantile(antisense, probs=(1-trim_pct)))
+                      high_antisense = quantile(antisense, probs=(1-trim_pct))) %>%
+            drop_na()
 
         metadf_group = df %>%
             group_by(group, annotation, strand, position, cluster) %>%
@@ -765,7 +769,8 @@ main = function(in_paths, samplelist, anno_paths, ptype, upstream, dnstream, sca
         meta_sample_antisense %<>% format_sample_meta(strand="antisense")
 
         format_sample_meta_overlay = function(df, strand){
-            ggp = meta(df, strand=strand) +
+            # ggp = meta(df, strand=strand) +
+            ggp = meta(metadf_sample, strand=strand) +
                 scale_color_ptol() +
                 ggtitle(if_else(strand != "both", paste(strand, assay, "signal"),
                                 paste(assay, "signal")),

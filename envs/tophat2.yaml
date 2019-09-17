@@ -1,7 +1,7 @@
 name: tophat2
 channels:
-    - bioconda
     - conda-forge
+    - bioconda
 dependencies:
     - tophat=2.1.1
 
