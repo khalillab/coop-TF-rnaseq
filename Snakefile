@@ -61,6 +61,7 @@ include: "rules/net-seq_sample_similarity.smk"
 include: "rules/net-seq_datavis.smk"
 include: "rules/net-seq_differential_levels.smk"
 include: "rules/net-seq_transcript_annotation.smk"
+include: "rules/tss-seq_gene_ontology.smk"
 # include: "rules/net-seq_transcript_classification.smk"
 
 onsuccess:
@@ -109,4 +110,9 @@ rule all:
             zip, condition=conditiongroups, control=controlgroups),
             direction=["all", "up", "down", "unchanged"],
             annotation=list(config["differential_expression"]["annotations"].keys()) if config["differential_expression"]["annotations"] else []),
+        #gene ontology
+        expand(expand("gene_ontology/{condition}-v-{control}/libsizenorm/{condition}-v-{control}_tss-seq-libsizenorm-{{direction}}-gene-ontology-enriched-all.svg",
+            zip, condition=conditiongroups, control=controlgroups),
+            direction=["up", "down", "unchanged"]),
+
 

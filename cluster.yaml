@@ -12,10 +12,6 @@ clean_reads:
     n: 2
     mem : 2000
 
-extract_molec_barcode:
-    time : 120
-    mem : 4000
-
 align:
     time : 720
     n : 8
@@ -25,14 +21,6 @@ select_unique_mappers:
     time : 20
     n : 2
     mem : 1000
-
-remove_PCR_duplicates:
-    time : 180
-    mem : 2000
-
-bam_separate_species:
-    time : 4
-    mem : 50
 
 fastqc_prealignment:
     time : 15
@@ -71,12 +59,12 @@ bedgraph_to_bigwig:
     mem: 50
 
 compute_matrix:
-    time: 15
+    time: 3
     mem: 400
 
 plot_figures:
-    time: 15
-    mem: 24000
+    time: 50
+    mem: 30000
 
 map_to_windows:
     time: 12
@@ -101,3 +89,8 @@ differential_expression:
 summarise_diffexp_results:
     time: 4
     mem: 700
+
+gene_ontology:
+    time: 2
+    mem: 1G
+

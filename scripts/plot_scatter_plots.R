@@ -42,7 +42,7 @@ main = function(intable, binsize, pcount, samplelist, assay, outpath){
                         scale_y_continuous(breaks=c(0,.5,1)) +
                         scale_x_log10(limit = c(pcount, maxsignal)) +
                         annotate("text", x=.90*maxsignal, y=0.5, hjust=1,
-                                 label=unique(subdf$sample), size=4, fontface="bold")
+                                 label=unique(subdf$sample), size=2)
                 plots[[idx]] = plot
             } else {
                 #bottom left (scatter)
@@ -67,10 +67,11 @@ main = function(intable, binsize, pcount, samplelist, assay, outpath){
                    title = paste0(assay, " signal, ", binsize, "nt bins"),
                    xAxisLabels = names(df), yAxisLabels = names(df), switch="both") +
                     theme_light() +
-                    theme(plot.title = element_text(size=12, color="black", face="bold"),
-                          axis.text = element_text(size=9),
+                    theme(plot.title = element_text(size=12, color="black"),
+                          axis.text = element_text(size=8),
                           strip.background = element_blank(),
-                          strip.text = element_text(size=12, color="black", face="bold"),
+                          strip.text = element_text(size=10, color="black"),
+                          strip.text.x = element_text(angle=15, hjust=1, vjust=1),
                           strip.text.y = element_text(angle=180, hjust=1),
                           strip.placement="outside",
                           strip.switch.pad.grid = unit(0, "points"),

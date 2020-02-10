@@ -1,0 +1,12 @@
+name: gene_ontology
+channels:
+    - conda-forge
+    - bioconda
+dependencies:
+    - r-tidyverse=1.2.1
+    - bioconductor-goseq=1.36.0
+    - r-ggthemes=4.2.0
+    - r-cowplot=1.0.0
+    - r-svglite=1.2.2
+    - r-gdtools=0.2.0
+

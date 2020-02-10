@@ -7,6 +7,7 @@ logs/*
 logs/cluster/*
 datavis/
 ratios/
+gene_ontology/
 transcript_annotation/
 directionality/
 scripts/.snakemake*
