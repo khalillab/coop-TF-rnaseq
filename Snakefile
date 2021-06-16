@@ -113,6 +113,6 @@ rule all:
         #gene ontology
         expand(expand("gene_ontology/{condition}-v-{control}/libsizenorm/{condition}-v-{control}_tss-seq-libsizenorm-{{direction}}-gene-ontology-enriched-all.svg",
             zip, condition=conditiongroups, control=controlgroups),
-            direction=["up", "down", "unchanged"]),
+            direction=["up", "down", "unchanged"]) if config["run_gene_ontology"] else [],
 
 

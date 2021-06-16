@@ -1,8 +1,8 @@
 #!/bin/bash
 
-#SBATCH -p short
-#SBATCH -t 1:00:00
-#SBATCH --mem-per-cpu=1400M
+#SBATCH -p priority
+#SBATCH -t 12:00:00
+#SBATCH --mem-per-cpu=2400M
 #SBATCH -c 1
 #SBATCH -e snakemake.err
 #SBATCH -o snakemake.log
